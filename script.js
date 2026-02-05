@@ -2,35 +2,26 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-async function createPersonInPipedrive({ name, email, phone }) {
-  const token = window.PIPE_DRIVE_API_TOKEN;
-  const domain = window.PIPE_DRIVE_COMPANY_DOMAIN;
-
-  if (!token || !domain) {
-    throw new Error("Config faltando: token ou domain (config.js).");
-  }
-
-  const url = `https://${domain}.pipedrive.com/api/v1/persons?api_token=${encodeURIComponent(token)}`;
-
-  const payload = {
-    name,
-    email: email ? [{ value: email, primary: true }] : [],
-    phone: phone ? [{ value: phone, primary: true }] : [],
-  };
-
-  const res = await fetch(url, {
+/**
+ * ✅ Chamada “profissional”:
+ * Frontend -> Netlify Function -> Pipedrive API
+ * (token fica no servidor/ENV, não no navegador)
+ */
+async function createPersonViaFunction({ name, email, phone }) {
+  const res = await fetch("/.netlify/functions/createPerson", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ name, email, phone }),
   });
 
-  const data = await res.json();
+  // tenta ler resposta como JSON
+  const data = await res.json().catch(() => null);
 
-  if (!res.ok || data?.success === false) {
+  if (!res.ok || !data?.ok) {
     throw new Error(data?.error || `Erro HTTP ${res.status}`);
   }
 
-  return data?.data; // pessoa criada
+  return data.person; // pessoa criada (retorno da function)
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -69,7 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.disabled = true;
       status.innerHTML = `Enviando para o Pipedrive...`;
 
-      const person = await createPersonInPipedrive({ name, email, phone });
+      // ✅ trocamos a chamada direta pra API pela Function
+      const person = await createPersonViaFunction({ name, email, phone });
 
       status.innerHTML = `<span class="ok">OK! Pessoa criada no Pipedrive (id: ${person.id}).</span>`;
     } catch (err) {
