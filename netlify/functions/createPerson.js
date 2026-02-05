@@ -1,21 +1,21 @@
-/**
- * Netlify Function
- * Cria uma Pessoa (Lead) no Pipedrive
- *
- * Fluxo:
- * Frontend -> /.netlify/functions/createPerson -> Pipedrive API
- *
- * Variáveis de ambiente necessárias:
- * - PIPEDRIVE_API_TOKEN
- * - PIPEDRIVE_COMPANY_DOMAIN
- */
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 export async function handler(event) {
-  // Aceita apenas POST
+  // Preflight (CORS)
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: corsHeaders, body: "" };
+  }
+
+  // Só POST
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: "Method Not Allowed" }),
+      headers: corsHeaders,
+      body: JSON.stringify({ ok: false, error: "Method Not Allowed" }),
     };
   }
 
@@ -25,7 +25,8 @@ export async function handler(event) {
     if (!name || !email) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "Nome e email são obrigatórios." }),
+        headers: corsHeaders,
+        body: JSON.stringify({ ok: false, error: "Nome e email são obrigatórios." }),
       };
     }
 
@@ -35,15 +36,16 @@ export async function handler(event) {
     if (!token || !domain) {
       return {
         statusCode: 500,
+        headers: corsHeaders,
         body: JSON.stringify({
-          error: "Variáveis de ambiente do Pipedrive não configuradas.",
+          ok: false,
+          error: "ENV faltando no Netlify",
+          hint: "Crie PIPEDRIVE_API_TOKEN e PIPEDRIVE_COMPANY_DOMAIN (somente o subdomínio). Depois faça Clear cache and deploy.",
         }),
       };
     }
 
-    const url = `https://${domain}.pipedrive.com/api/v1/persons?api_token=${encodeURIComponent(
-      token
-    )}`;
+    const url = `https://${domain}.pipedrive.com/api/v1/persons?api_token=${encodeURIComponent(token)}`;
 
     const payload = {
       name,
@@ -53,31 +55,37 @@ export async function handler(event) {
 
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     const data = await response.json();
 
     if (!response.ok || data?.success === false) {
-      throw new Error(data?.error || "Erro ao criar pessoa no Pipedrive");
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          ok: false,
+          error: data?.error || `HTTP ${response.status}`,
+          hint: "Se o erro for de autenticação, revise o token. Se for domínio, revise PIPEDRIVE_COMPANY_DOMAIN.",
+        }),
+      };
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        ok: true,
-        person: data.data,
-      }),
+      headers: corsHeaders,
+      body: JSON.stringify({ ok: true, person: data.data }),
     };
   } catch (err) {
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({
         ok: false,
         error: err.message,
+        hint: "Se continuar 'fetch failed', confira NODE_VERSION=18 no netlify.toml e confirme o domínio do Pipedrive (subdomínio). Depois faça Clear cache and deploy.",
       }),
     };
   }
