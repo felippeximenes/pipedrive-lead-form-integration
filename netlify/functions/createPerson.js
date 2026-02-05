@@ -4,6 +4,27 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+async function pipedrivePost({ domain, token, path, payload }) {
+  const url = `https://${domain}.pipedrive.com/api/v1/${path}?api_token=${encodeURIComponent(
+    token
+  )}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || data?.success === false) {
+    const msg = data?.error || `HTTP ${res.status}`;
+    throw new Error(`Pipedrive error on ${path}: ${msg}`);
+  }
+
+  return data.data;
+}
+
 export async function handler(event) {
   // Preflight (CORS)
   if (event.httpMethod === "OPTIONS") {
@@ -40,43 +61,45 @@ export async function handler(event) {
         body: JSON.stringify({
           ok: false,
           error: "ENV faltando no Netlify",
-          hint: "Crie PIPEDRIVE_API_TOKEN e PIPEDRIVE_COMPANY_DOMAIN (somente o subdomínio). Depois faça Clear cache and deploy.",
+          hint: "Configure PIPEDRIVE_API_TOKEN e PIPEDRIVE_COMPANY_DOMAIN (apenas subdomínio). Depois faça um novo deploy.",
         }),
       };
     }
 
-    const url = `https://${domain}.pipedrive.com/api/v1/persons?api_token=${encodeURIComponent(token)}`;
-
-    const payload = {
+    // 1) Cria Pessoa
+    const personPayload = {
       name,
       email: [{ value: email, primary: true }],
       phone: phone ? [{ value: phone, primary: true }] : [],
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const person = await pipedrivePost({
+      domain,
+      token,
+      path: "persons",
+      payload: personPayload,
     });
 
-    const data = await response.json();
+    // 2) Cria Deal associado à Pessoa
+    const dealPayload = {
+      title: `Lead - ${name}`,
+      person_id: person.id,
+      // você pode setar value/currency se quiser:
+      // value: 0,
+      // currency: "BRL",
+    };
 
-    if (!response.ok || data?.success === false) {
-      return {
-        statusCode: 400,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          ok: false,
-          error: data?.error || `HTTP ${response.status}`,
-          hint: "Se o erro for de autenticação, revise o token. Se for domínio, revise PIPEDRIVE_COMPANY_DOMAIN.",
-        }),
-      };
-    }
+    const deal = await pipedrivePost({
+      domain,
+      token,
+      path: "deals",
+      payload: dealPayload,
+    });
 
     return {
       statusCode: 200,
       headers: corsHeaders,
-      body: JSON.stringify({ ok: true, person: data.data }),
+      body: JSON.stringify({ ok: true, person, deal }),
     };
   } catch (err) {
     return {
@@ -85,7 +108,7 @@ export async function handler(event) {
       body: JSON.stringify({
         ok: false,
         error: err.message,
-        hint: "Se continuar 'fetch failed', confira NODE_VERSION=18 no netlify.toml e confirme o domínio do Pipedrive (subdomínio). Depois faça Clear cache and deploy.",
+        hint: "Se falhar, confira o domínio (subdomínio) e o token nas ENV do Netlify e veja os logs da Function.",
       }),
     };
   }
