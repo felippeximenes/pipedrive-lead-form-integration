@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipedrive Lead Form Integration (Step 1)</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    label { display:block; margin-top: 12px; font-weight: 600; }
+    input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #d1d5db; border-radius: 10px; }
+    button { margin-top: 16px; padding: 10px 14px; border: 0; border-radius: 10px; background: #111827; color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .hint { color:#6b7280; font-size: 14px; margin-top: 6px; }
+    pre { background:#0b1020; color:#e5e7eb; padding: 12px; border-radius: 12px; overflow:auto; }
+    .ok { color:#16a34a; font-weight:700; }
+    .err { color:#dc2626; font-weight:700; }
+  </style>
+</head>
+<body>
+  <h1>Step 1 — Formulário de Lead</h1>
+  <p class="hint">Objetivo: capturar dados do lead e montar o payload (sem API ainda).</p>
+
+  <div class="card">
+    <form id="leadForm" novalidate>
+      <label for="name">Nome *</label>
+      <input id="name" name="name" type="text" placeholder="Ex: Felippe Ximenes" required minlength="2" />
+
+      <label for="email">Email *</label>
+      <input id="email" name="email" type="email" placeholder="ex: felippe@email.com" required />
+
+      <label for="phone">Telefone (opcional)</label>
+      <input id="phone" name="phone" type="tel" placeholder="ex: +55 11 99999-9999" />
+
+      <button id="submitBtn" type="submit">Gerar payload do lead</button>
+
+      <p id="status" class="hint"></p>
+    </form>
+  </div>
+
+  <h2>Payload gerado</h2>
+  <pre id="output">{}</pre>
+
+  <script src="./script.js"></script>
+</body>
+</html>
